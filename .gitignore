@@ -1,0 +1,6 @@
+/target/
+/iso_root/
+/kernel.iso
+/kernel.hdd
+/limine-binary/
+/edk2-ovmf-bins/
