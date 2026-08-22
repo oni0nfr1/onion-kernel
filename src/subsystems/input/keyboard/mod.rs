@@ -294,8 +294,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        KeyAction, KeyCode, KeyEvent, KeyState, Keyboard, KeyboardFeedback, KeyboardLeds,
-        layout::UsQwerty,
+        KeyAction, KeyCode, KeyEvent, KeyState, Keyboard, KeyboardFeedback, KeyboardLeds, UsQwerty,
     };
 
     fn press(keyboard: &mut Keyboard<UsQwerty>, code: KeyCode) -> super::KeyboardOutput {

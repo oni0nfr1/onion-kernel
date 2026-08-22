@@ -1,16 +1,8 @@
 #![no_std]
 #![no_main]
 
-mod arch;
-mod drivers;
-mod interfaces;
-mod subsystems;
-mod util;
-
 use core::{fmt::Write as _, panic::PanicInfo};
-use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::FramebufferRequest};
-
-use crate::{
+use kernel::{
     drivers::{
         framebuffer::Framebuffer,
         ps2::{
@@ -31,6 +23,7 @@ use crate::{
     },
     util::{color::Color, grid::GridPosition},
 };
+use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::FramebufferRequest};
 
 #[used]
 #[unsafe(link_section = ".limine_requests_start")]

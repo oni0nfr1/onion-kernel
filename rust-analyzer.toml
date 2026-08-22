@@ -1,0 +1,7 @@
+[cargo]
+target = "x86_64-unknown-none"
+allTargets = false
+
+[check]
+allTargets = true
+targets = ["x86_64-unknown-linux-gnu"]
