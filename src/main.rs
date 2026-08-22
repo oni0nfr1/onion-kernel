@@ -7,7 +7,7 @@ mod interfaces;
 mod subsystems;
 mod util;
 
-use core::panic::PanicInfo;
+use core::{fmt::Write as _, panic::PanicInfo};
 use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::FramebufferRequest};
 
 use crate::{
@@ -20,6 +20,7 @@ use crate::{
             keyboard::Ps2Keyboard,
             scancode::set2::Set2Decoder,
         },
+        serial::{COM1_BASE, SerialPort},
     },
     subsystems::{
         display::{
@@ -158,6 +159,13 @@ fn halt() -> ! {
 }
 
 #[panic_handler]
-fn panic(_: &PanicInfo<'_>) -> ! {
+fn panic(info: &PanicInfo<'_>) -> ! {
+    // SAFETY: Panic output is the kernel's only COM1 user. Interrupt-driven
+    // serial access is not enabled, and reinitialization is acceptable on this
+    // terminal failure path.
+    let mut serial = unsafe { SerialPort::new(COM1_BASE) };
+    serial.initialize();
+    let _ = writeln!(serial, "\nKERNEL PANIC: {info}");
+
     halt()
 }

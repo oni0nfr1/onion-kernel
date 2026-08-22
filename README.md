@@ -58,6 +58,9 @@ make run-hdd
 make run-hdd-uefi
 ```
 
+QEMU 실행 중 커널 패닉 메시지는 COM1 UART를 통해 실행한 터미널에
+출력됩니다.
+
 빌드 결과는 저장소 루트의 `kernel.iso` 또는 `kernel.hdd`에 생성됩니다.
 
 > [!WARNING]
