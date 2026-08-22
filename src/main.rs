@@ -3,6 +3,7 @@
 
 mod arch;
 mod drivers;
+mod interfaces;
 mod subsystems;
 mod util;
 
@@ -10,10 +11,22 @@ use core::panic::PanicInfo;
 use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::FramebufferRequest};
 
 use crate::{
-    drivers::framebuffer::Framebuffer,
-    subsystems::display::{
-        font::{DEFAULT_FONT_DATA, onft::OnftFont},
-        text::{FramebufferTextScreen, TextScreen},
+    drivers::{
+        framebuffer::Framebuffer,
+        ps2::{
+            bus::Ps2Bus,
+            controller::I8042,
+            device::{NoDevice, Ps2Event},
+            keyboard::Ps2Keyboard,
+            scancode::set2::Set2Decoder,
+        },
+    },
+    subsystems::{
+        display::{
+            font::{DEFAULT_FONT_DATA, onft::OnftFont},
+            text::{FramebufferTextScreen, TextScreen},
+        },
+        input::keyboard::{UsQwerty, UsQwertyKeyboard},
     },
     util::{color::Color, grid::GridPosition},
 };
@@ -80,7 +93,62 @@ pub extern "C" fn kmain() -> ! {
             .expect("centered message must fit in text screen");
     }
 
-    halt() // 정상 종료
+    // SAFETY: This kernel assumes an i8042-compatible controller is present on
+    // the current x86_64 platform, and this is the only value that accesses its
+    // data and status ports. Interrupt-driven access has not been enabled.
+    let controller = unsafe { I8042::new() };
+    let keyboard_driver = Ps2Keyboard::new(Set2Decoder::new());
+    let mut ps2_bus = Ps2Bus::new(controller, keyboard_driver, NoDevice);
+
+    ps2_bus
+        .initialize_controller()
+        .expect("i8042 controller and its first PS/2 port must initialize");
+    let initialization = ps2_bus
+        .request_first(|keyboard| keyboard.initialize())
+        .expect("first-port PS/2 keyboard initialization must be queued");
+
+    loop {
+        let Some(output) = ps2_bus
+            .poll()
+            .expect("PS/2 bus must remain operational during keyboard initialization")
+        else {
+            core::hint::spin_loop();
+            continue;
+        };
+
+        if let Some(completion) = output.completion
+            && completion.id == initialization
+        {
+            completion
+                .result
+                .expect("first-port PS/2 keyboard must initialize");
+            break;
+        }
+    }
+
+    let mut keyboard = UsQwertyKeyboard::new(UsQwerty);
+
+    loop {
+        let Some(output) = ps2_bus
+            .poll()
+            .expect("PS/2 bus must remain operational while polling keyboard input")
+        else {
+            core::hint::spin_loop();
+            continue;
+        };
+        let Some(Ps2Event::Keyboard(event)) = output.event else {
+            continue;
+        };
+
+        let input = keyboard.handle_key_event(event);
+        let Some(ch) = input.text else {
+            continue;
+        };
+
+        screen
+            .put_char(GridPosition::new(0, 0), ch, Color::WHITE, Color::BLACK)
+            .expect("top-left text-screen cell must remain drawable");
+    }
 }
 
 fn halt() -> ! {

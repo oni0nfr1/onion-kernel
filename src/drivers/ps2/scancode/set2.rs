@@ -1,4 +1,6 @@
-use super::{KeyCode, KeyEvent, KeyState, ScanCodeDecoder, ScanCodeSet};
+use crate::interfaces::input::{KeyCode, KeyEvent, KeyState};
+
+use super::{ScanCodeDecoder, ScanCodeSet};
 
 const RELEASE_PREFIX: u8 = 0xf0;
 const EXTENDED_PREFIX: u8 = 0xe0;

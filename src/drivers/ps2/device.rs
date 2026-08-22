@@ -1,7 +1,6 @@
-use super::{
-    controller::I8042Error,
-    scancode::{KeyEvent, ScanCodeSet},
-};
+use crate::interfaces::input::KeyEvent;
+
+use super::{controller::I8042Error, scancode::ScanCodeSet};
 
 /// An input event produced spontaneously by a supported PS/2 device.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
