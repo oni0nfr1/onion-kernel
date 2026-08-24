@@ -15,13 +15,14 @@ use kernel::{
         serial::{COM1_BASE, SerialPort},
     },
     subsystems::{
+        console::{AsciiConsole, Console, ConsoleColors},
         display::{
             font::{DEFAULT_FONT_DATA, onft::OnftFont},
-            text::{FramebufferTextScreen, TextScreen},
+            text::FramebufferTextScreen,
         },
-        input::keyboard::{UsQwerty, UsQwertyKeyboard},
+        input::keyboard::{KeyAction, KeyCode, UsQwerty, UsQwertyKeyboard},
     },
-    util::{color::Color, grid::GridPosition},
+    util::color::Color,
 };
 use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::FramebufferRequest};
 
@@ -60,32 +61,11 @@ pub extern "C" fn kmain() -> ! {
         .find_map(|framebuffer| Framebuffer::new(framebuffer).ok())
         .expect("supported framebuffer found from bootloader response");
 
-    let mut screen =
+    let screen =
         FramebufferTextScreen::new(framebuffer, font).expect("font must fit in framebuffer");
-
-    screen.clear(Color::BLACK);
-
-    const MESSAGE: &str = "Hello World!";
-
-    let screen_size = screen.size();
-    let message_columns = MESSAGE.chars().count();
-    let message_column = screen_size
-        .columns
-        .checked_sub(message_columns)
-        .expect("message must fit in text screen")
-        / 2;
-    let message_row = screen_size.rows / 2;
-
-    for (index, ch) in MESSAGE.chars().enumerate() {
-        screen
-            .put_char(
-                GridPosition::new(message_column + index, message_row),
-                ch,
-                Color::WHITE,
-                Color::BLACK,
-            )
-            .expect("centered message must fit in text screen");
-    }
+    let mut console = AsciiConsole::new(screen, ConsoleColors::new(Color::WHITE, Color::BLACK))
+        .expect("framebuffer text screen must contain at least one cell");
+    console.clear();
 
     // SAFETY: This kernel assumes an i8042-compatible controller is present on
     // the current x86_64 platform, and this is the only value that accesses its
@@ -135,13 +115,25 @@ pub extern "C" fn kmain() -> ! {
         };
 
         let input = keyboard.handle_key_event(event);
-        let Some(ch) = input.text else {
+        let byte = if let Some(ch) = input.text {
+            if ch.is_ascii() { ch as u8 } else { b'?' }
+        } else if matches!(input.key.action, KeyAction::Pressed | KeyAction::Repeated) {
+            match input.key.code {
+                KeyCode::Enter | KeyCode::NumpadEnter => b'\n',
+                KeyCode::Tab => b'\t',
+                KeyCode::Backspace => 0x08,
+                _ => continue,
+            }
+        } else {
             continue;
         };
 
-        screen
-            .put_char(GridPosition::new(0, 0), ch, Color::WHITE, Color::BLACK)
-            .expect("top-left text-screen cell must remain drawable");
+        let output = if byte == 0x08 {
+            console.write_bytes(b"\x08 \x08")
+        } else {
+            console.write_byte(byte)
+        };
+        output.expect("framebuffer console output must remain drawable");
     }
 }
 
