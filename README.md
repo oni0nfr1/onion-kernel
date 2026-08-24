@@ -99,4 +99,8 @@ make font FONT_SOURCE=/path/to/font.psfu
 
 ## 라이선스
 
-이 프로젝트는 [MIT License](LICENSE)에 따라 배포됩니다.
+소스 코드와 별도 고지가 없는 프로젝트 파일은 [MIT License](LICENSE)에
+따라 배포됩니다. `assets/fonts/default.onft`는 Terminus Font에서 파생된
+수정 폰트이며 [SIL Open Font License 1.1](assets/fonts/OFL.txt)에 따라
+배포됩니다. 자세한 출처와 변환 내용은
+[`assets/fonts/README.md`](assets/fonts/README.md)를 참조하세요.
