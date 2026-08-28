@@ -1,3 +1,4 @@
+pub mod bitmap;
 pub mod color;
 pub mod geometry;
 pub mod grid;
@@ -12,4 +13,13 @@ pub fn read_u32_le(data: &[u8], offset: usize) -> Option<u32> {
     let end = offset.checked_add(size_of::<u32>())?;
     let bytes: [u8; 4] = data.get(offset..end)?.try_into().ok()?;
     Some(u32::from_le_bytes(bytes))
+}
+
+fn align_up(value: usize, alignment: usize) -> Option<usize> {
+    let remainder = value % alignment;
+    if remainder == 0 {
+        Some(value)
+    } else {
+        value.checked_add(alignment - remainder)
+    }
 }

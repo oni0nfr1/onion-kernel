@@ -94,6 +94,9 @@ make font FONT_SOURCE=/path/to/font.psfu
 - `tools`: 호스트에서 실행하는 개발 도구
 - `docs`: 바이너리 형식 등의 프로젝트 명세
 
+상위 모듈 사이의 의존 방향과 현재 허용하는 임시 예외는
+[`docs/module-dependencies.md`](docs/module-dependencies.md)에 정리되어 있습니다.
+
 현재는 x86_64만 지원하며, 지원되는 실제 하드웨어 및 펌웨어 조합은 아직
 충분히 검증되지 않았습니다.
 

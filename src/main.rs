@@ -24,7 +24,18 @@ use kernel::{
     },
     util::color::Color,
 };
-use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::FramebufferRequest};
+use limine::{
+    BaseRevision,
+    RequestsEndMarker,
+    RequestsStartMarker,
+    memmap,
+    paging::PagingMode,
+    request::{
+        FramebufferRequest,
+        MemmapRequest,
+        PagingModeRequest,
+    },
+};
 
 #[used]
 #[unsafe(link_section = ".limine_requests_start")]
@@ -37,6 +48,15 @@ static BASE_REVISION: BaseRevision = BaseRevision::new();
 #[used]
 #[unsafe(link_section = ".limine_requests")]
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
+
+#[used]
+#[unsafe(link_section = ".limine_requests")]
+static MEMMAP_REQUEST: MemmapRequest = MemmapRequest::new();
+
+#[used]
+#[unsafe(link_section = ".limine_requests")]
+static PAGING_MODE_REQUEST: PagingModeRequest =
+    PagingModeRequest::new_exact(PagingMode::X86_64_4LVL);
 
 #[used]
 #[unsafe(link_section = ".limine_requests_end")]
@@ -66,6 +86,95 @@ pub extern "C" fn kmain() -> ! {
     let mut console = AsciiConsole::new(screen, ConsoleColors::new(Color::WHITE, Color::BLACK))
         .expect("framebuffer text screen must contain at least one cell");
     console.clear();
+
+    let memmap_response = MEMMAP_REQUEST
+        .response()
+        .expect("memory-map response received from bootloader");
+
+    writeln!(
+        console,
+        "Memory map: {} entries",
+        memmap_response.entries().len(),
+    )
+    .expect("memory-map header must be drawable");
+
+    let mut total_length = 0_u64;
+    let mut type_lengths = [0_u64; MEMMAP_TYPE_COUNT];
+    let mut unknown_length = 0_u64;
+    let mut highest_end = 0_u64;
+
+    for (index, entry) in memmap_response.entries().iter().enumerate() {
+        total_length = total_length
+            .checked_add(entry.length)
+            .expect("total memory-map length must fit u64");
+
+        if let Ok(type_index) = usize::try_from(entry.type_)
+            && let Some(type_length) = type_lengths.get_mut(type_index)
+        {
+            *type_length = type_length
+                .checked_add(entry.length)
+                .expect("memory-map type length must fit u64");
+        } else {
+            unknown_length = unknown_length
+                .checked_add(entry.length)
+                .expect("unknown memory-map type length must fit u64");
+        }
+
+        let Some(end) = entry.base.checked_add(entry.length) else {
+            writeln!(
+                console,
+                "{index:02}: {:#018x} + {:#018x} overflow",
+                entry.base, entry.length,
+            )
+            .expect("invalid memory-map entry must be drawable");
+            continue;
+        };
+        highest_end = highest_end.max(end);
+
+        writeln!(
+            console,
+            "{index:02}: {:#018x}..{end:#018x} {:>10} KiB {}",
+            entry.base,
+            entry.length / 1024,
+            memmap_type_name(entry.type_),
+        )
+        .expect("memory-map entry must be drawable");
+    }
+
+    writeln!(console, "\nMemory totals:").expect("memory-map totals header must be drawable");
+    writeln!(
+        console,
+        "  total:               {:>10} KiB",
+        total_length / 1024,
+    )
+    .expect("total memory-map length must be drawable");
+
+    for (type_index, length) in type_lengths.iter().copied().enumerate() {
+        if length == 0 {
+            continue;
+        }
+
+        writeln!(
+            console,
+            "  {:<20} {:>10} KiB",
+            memmap_type_name(type_index as u64),
+            length / 1024,
+        )
+        .expect("memory-map type total must be drawable");
+    }
+
+    if unknown_length != 0 {
+        writeln!(
+            console,
+            "  {:<20} {:>10} KiB",
+            "unknown",
+            unknown_length / 1024,
+        )
+        .expect("unknown memory-map type total must be drawable");
+    }
+
+    writeln!(console, "  highest end: {highest_end:#018x}\n")
+        .expect("highest physical address must be drawable");
 
     // SAFETY: This kernel assumes an i8042-compatible controller is present on
     // the current x86_64 platform, and this is the only value that accesses its
@@ -134,6 +243,23 @@ pub extern "C" fn kmain() -> ! {
             console.write_byte(byte)
         };
         output.expect("framebuffer console output must remain drawable");
+    }
+}
+
+const MEMMAP_TYPE_COUNT: usize = 9;
+
+const fn memmap_type_name(type_: u64) -> &'static str {
+    match type_ {
+        memmap::MEMMAP_USABLE => "usable",
+        memmap::MEMMAP_RESERVED => "reserved",
+        memmap::MEMMAP_ACPI_RECLAIMABLE => "ACPI reclaimable",
+        memmap::MEMMAP_ACPI_NVS => "ACPI NVS",
+        memmap::MEMMAP_BAD_MEMORY => "bad memory",
+        memmap::MEMMAP_BOOTLOADER_RECLAIMABLE => "bootloader reclaimable",
+        memmap::MEMMAP_EXECUTABLE_AND_MODULES => "kernel/modules",
+        memmap::MEMMAP_FRAMEBUFFER => "framebuffer",
+        memmap::MEMMAP_MAPPED_RESERVED => "mapped reserved",
+        _ => "unknown",
     }
 }
 
