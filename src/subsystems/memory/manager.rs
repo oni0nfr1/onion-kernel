@@ -1,4 +1,4 @@
-use crate::arch::x86_64::paging::{entry::PtFlags, mapper::PageMapper};
+use crate::arch::common::paging::{DirectMap, MappingPermissions, PageMapper};
 
 use super::{
     physical::BitmapPageAllocator,
@@ -20,20 +20,28 @@ pub enum ReleasePagesError {
 }
 
 #[expect(dead_code, reason = "implementation scaffold")]
-pub struct MemoryManager<'a> {
-    physical: BitmapPageAllocator<'a>,
-    virtual_regions: VirtualRegionAllocator,
-    mapper: PageMapper,
-    hhdm_offset: u64,
+pub struct MemoryManager<M, D>
+where
+    M: PageMapper,
+    D: DirectMap<PhysicalAddress = M::PhysicalAddress, VirtualAddress = M::VirtualAddress>,
+{
+    physical: BitmapPageAllocator<M::PhysicalPage, D>,
+    virtual_regions: VirtualRegionAllocator<M::VirtualPage>,
+    mapper: M,
+    direct_map: D,
 }
 
 #[expect(unused_variables, reason = "implementation scaffold")]
-impl<'a> MemoryManager<'a> {
+impl<M, D> MemoryManager<M, D>
+where
+    M: PageMapper,
+    D: DirectMap<PhysicalAddress = M::PhysicalAddress, VirtualAddress = M::VirtualAddress>,
+{
     pub fn new(
-        physical: BitmapPageAllocator<'a>,
-        virtual_regions: VirtualRegionAllocator,
-        mapper: PageMapper,
-        hhdm_offset: u64,
+        physical: BitmapPageAllocator<M::PhysicalPage, D>,
+        virtual_regions: VirtualRegionAllocator<M::VirtualPage>,
+        mapper: M,
+        direct_map: D,
     ) -> Self {
         todo!()
     }
@@ -42,12 +50,15 @@ impl<'a> MemoryManager<'a> {
         &mut self,
         page_count: usize,
         alignment_pages: usize,
-        flags: PtFlags,
-    ) -> Result<VirtualRegion, AllocatePagesError> {
+        permissions: MappingPermissions,
+    ) -> Result<VirtualRegion<M::VirtualPage>, AllocatePagesError> {
         todo!()
     }
 
-    pub fn release_pages(&mut self, region: VirtualRegion) -> Result<(), ReleasePagesError> {
+    pub fn release_pages(
+        &mut self,
+        region: VirtualRegion<M::VirtualPage>,
+    ) -> Result<(), ReleasePagesError> {
         todo!()
     }
 }

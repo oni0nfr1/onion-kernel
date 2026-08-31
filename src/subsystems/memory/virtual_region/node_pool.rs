@@ -1,4 +1,6 @@
-use core::{mem::MaybeUninit, ptr::NonNull};
+use core::{marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
+
+use crate::arch::common::paging::VirtualPage;
 
 use super::tree::VirtualRegionDescriptor;
 
@@ -12,14 +14,21 @@ pub struct FreeRegionNodeSlot {
     pub next: Option<NonNull<FreeRegionNodeSlot>>,
 }
 
-pub struct RegionNodePool {
+pub struct RegionNodePool<P>
+where
+    P: VirtualPage,
+{
     pub slabs: Option<NonNull<RegionNodeSlab>>,
     pub free_head: Option<NonNull<FreeRegionNodeSlot>>,
     pub free_count: usize,
+    page: PhantomData<VirtualRegionDescriptor<P>>,
 }
 
 #[expect(unused_variables, reason = "implementation scaffold")]
-impl RegionNodePool {
+impl<P> RegionNodePool<P>
+where
+    P: VirtualPage,
+{
     pub fn new() -> Self {
         todo!()
     }
@@ -28,7 +37,7 @@ impl RegionNodePool {
         todo!()
     }
 
-    pub fn take(&mut self) -> Option<NonNull<MaybeUninit<VirtualRegionDescriptor>>> {
+    pub fn take(&mut self) -> Option<NonNull<MaybeUninit<VirtualRegionDescriptor<P>>>> {
         todo!()
     }
 
@@ -36,11 +45,11 @@ impl RegionNodePool {
     ///
     /// `node` must belong to this pool, must not be linked into either region
     /// tree, and must not have already been returned.
-    pub unsafe fn put(&mut self, node: NonNull<VirtualRegionDescriptor>) {
+    pub unsafe fn put(&mut self, node: NonNull<VirtualRegionDescriptor<P>>) {
         todo!()
     }
 
-    /// Adds a page-sized, writable HHDM mapping as a new node slab.
+    /// Adds a page-sized, writable DirectMap mapping as a new node slab.
     ///
     /// # Safety
     ///

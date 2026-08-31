@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use crate::arch::common::paging::{Address as _, Page as _};
+
 use super::{
     address::{PhysicalAddress, PhysicalPage},
     level::{Level1, Level2, Level3, Level4, TableLevel},

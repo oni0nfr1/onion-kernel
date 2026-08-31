@@ -9,16 +9,18 @@ accepted during the initial single-crate implementation.
 The intended dependency graph is acyclic:
 
 ```text
-                         main / assembly layer
-                           /              \
-                          v                v
-                    subsystems          drivers
-                       |   \              /  |
-                       |    v            v   |
-                       |      interfaces     |
-                       |          |           |
-                       v          v           v
-                     arch ----------------> util
+main / assembly layer
+    |-- constructs subsystems
+    |-- constructs drivers
+    |-- invokes boot resource interpreters
+    `-- selects arch::x86_64 implementations
+
+subsystems    ---> arch::common, interfaces, util
+drivers       ---> concrete arch mechanisms, interfaces, util
+boot          ---> arch::common, interfaces, util, boot-protocol crates
+arch::x86_64  ---> arch::common, interfaces, util
+arch::common  ---> interfaces, util
+interfaces    ---> util
 ```
 
 The arrows indicate allowed dependency directions, not required dependencies.
@@ -31,9 +33,11 @@ subsystems and connecting them together.
 | --- | --- |
 | `util` | `core` and architecture-independent external crates |
 | `interfaces` | `util` |
-| `arch` | `util` and, when necessary, neutral `interfaces` contracts |
-| `drivers` | `arch`, `interfaces`, and `util` |
-| `subsystems` | `arch`, `interfaces`, `util`, and explicitly lower-level subsystems |
+| `arch::common` | `util` and, when necessary, neutral `interfaces` contracts |
+| concrete `arch` modules | `arch::common`, `util`, and neutral `interfaces` contracts |
+| `boot` | `arch::common`, `interfaces`, `util`, and boot-protocol crates |
+| `drivers` | architecture mechanisms, `interfaces`, and `util` |
+| `subsystems` | `arch::common`, `interfaces`, `util`, and explicitly lower-level subsystems |
 | final assembly layer | every layer it needs to construct and connect |
 
 The following directions are forbidden:
@@ -43,6 +47,8 @@ arch        -> drivers
 arch        -> subsystems
 drivers     -> subsystems
 subsystems  -> drivers
+subsystems  -> concrete architecture modules such as arch::x86_64
+boot        -> drivers, subsystems, or concrete architecture modules
 util        -> any kernel layer above util
 interfaces  -> drivers or subsystems
 ```
@@ -81,28 +87,64 @@ drivers::ps2 -> interfaces::input <- subsystems::input
 
 Neither side depends directly on the other.
 
-### `arch`
+### `boot`
 
-`arch` contains CPU- and platform-architecture mechanisms such as port I/O,
-page-table formats, control registers, and TLB invalidation. Other modules may
-depend on these mechanisms.
+`boot` provides boot-protocol interpreters and early-resource preparation
+functions. `boot::protocol` contains only the bootloader-independent results
+that drivers or subsystems consume. Here, `protocol` means the kernel's final
+boot-to-runtime handoff format, not every intermediate boot value and not a
+bootloader wire protocol. Types used only while preparing mappings remain in
+the other `boot` modules.
 
-`arch` must not depend on a physical allocator implementation in
-`subsystems::memory`. When paging needs physical pages for intermediate page tables, it
-defines the required contract on the architecture side:
-
-```text
-arch::x86_64::paging::PageTablePageProvider
-                         ^
-                         | implements
-subsystems::memory::BitmapPageAllocator
-```
-
-This preserves the dependency direction:
+It does not modify page tables, allocate virtual regions, construct drivers,
+or initialize subsystems. The assembly layer explicitly sequences those
+operations. For example, framebuffer preparation remains separate:
 
 ```text
-subsystems::memory -> arch::x86_64::paging
+boot::limine framebuffer response
+             |
+             v
+boot::framebuffer::PhysicalFramebuffer
+             |
+             +----> assembly requests an MMIO mapping
+             |
+             v
+boot::protocol::framebuffer::FramebufferData
+             |
+             v
+assembly constructs the framebuffer driver
 ```
+
+`boot::limine` owns Limine request declarations and response interpretation.
+Other boot protocols can implement equivalent resource functions without
+changing memory, driver, or subsystem code.
+
+### `arch::common` and concrete architecture modules
+
+`arch::common` contains architecture-neutral contracts needed by portable
+kernel policy. Concrete modules such as `arch::x86_64` contain mechanisms and
+representations such as port I/O, page-table formats, control registers, and
+TLB invalidation.
+
+Subsystems depend only on `arch::common`. Architecture-specific address, page,
+flags, and mapper types remain concrete and are exposed through associated
+types on the common contracts. The final assembly layer selects the x86-64
+implementation and injects it into the memory subsystem:
+
+```text
+subsystems::memory ----> arch::common contracts
+                               ^
+                               |
+arch::x86_64::paging ----------+
+              ^
+              |
+       main constructs and connects
+```
+
+No architecture module may depend on a physical allocator implementation in
+`subsystems::memory`. When paging needs physical pages for intermediate page
+tables, the shared contract represents that requirement without choosing its
+provider. Concrete composition remains outside both layers.
 
 ### `drivers`
 
@@ -137,8 +179,9 @@ subsystems::console -> subsystems::display::text
 
 ## Memory-management dependency direction
 
-Memory policy belongs to `subsystems::memory`, while x86-64 page-table
-manipulation belongs to `arch::x86_64::paging`:
+Memory policy belongs to `subsystems::memory`, neutral paging requirements
+belong to `arch::common`, and x86-64 page-table manipulation belongs to
+`arch::x86_64::paging`:
 
 ```text
 subsystems::memory::heap
@@ -147,44 +190,55 @@ subsystems::memory::heap
 subsystems::memory::manager
        |
        +---> physical allocator --------> util::Bitmap
-       |              |
-       |              +----------------> arch::x86_64::paging contracts
        |
        +---> virtual-region allocator --> region-tree/node-pool
-       |              |
-       |              +----------------> arch::x86_64::paging address types
        |
-       +--------------------------------> arch::x86_64::paging mapper
+       +--------------------------------> arch::common contracts
+
+arch::x86_64::paging -------------------> arch::common contracts
+
+main / assembly: connects subsystem implementations to x86-64 implementations
 ```
 
-The diagram expresses conceptual use; `util::Bitmap` does not depend on any
-memory type, and `arch::x86_64::paging` does not depend on the memory subsystem.
+The common contracts use associated types so the concrete x86-64 address and
+page invariants do not have to be duplicated in portable modules. The exact
+contracts are still under design. In particular, operations that require CPU
+context such as the detected physical-address width must receive it explicitly
+or obtain it through an injected architecture object, rather than global
+mutable state.
+
+`util::Bitmap` does not depend on any memory type, and neither
+`arch::common` nor `arch::x86_64::paging` depends on the memory subsystem.
 
 The global heap may call the memory manager to grow or release mappings. The
 memory manager and paging implementation must never call `Box`, `Vec`, or any
 other operation that can recursively invoke the global heap.
 
+Detailed memory-management design is documented in
+[`memory/README.md`](memory/README.md).
+
 ## Temporary exceptions
 
-### Limine boot protocol
+### Incomplete Limine migration
 
-During the initial implementation, the kernel and
-`subsystems::memory::bootstrap` may depend directly on Limine response types.
-Limine-specific values must not be stored in the steady-state physical or
-virtual allocator structures.
+Limine requests and new response interpreters belong to `boot::limine`.
+`subsystems::memory` no longer depends on Limine. The existing framebuffer
+driver and temporary memory-map display in `main` still consume Limine values
+directly until MMIO mapping and the new runtime framebuffer descriptor are
+implemented.
 
-When the project is split into crates, the final assembly crate will translate
-Limine responses into internal boot-information types and expose them through
-traits defined by `interfaces`:
+Limine-specific values must never be stored in steady-state physical or
+virtual allocator structures. Once the transition is complete, the intended
+flow is:
 
 ```text
 Limine responses
        |
        v
-final assembly adapter
-       | implements interfaces::boot contracts
+boot::limine resource function
+       | produces physical resource descriptors
        v
-memory subsystem
+main / assembly
 ```
 
 ### Framebuffer text screen
@@ -214,7 +268,9 @@ When the project grows, the intended crate split is:
 ```text
 onion-util
 onion-interfaces
+onion-arch-common
 onion-arch-x86_64
+onion-boot
 onion-drivers
 onion-subsystems
 onion-kernel

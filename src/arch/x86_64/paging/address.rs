@@ -1,4 +1,22 @@
+use crate::arch::common::paging::{
+    Address as CommonAddress, Page as CommonPage, PhysicalPage as CommonPhysicalPage,
+    VirtualPage as CommonVirtualPage,
+};
+
+use core::arch::x86_64::__cpuid;
+
 pub const PAGE_SIZE: u64 = 4096;
+
+/// Reads the processor's architectural physical-address width.
+pub fn max_physical_address_bits() -> Option<u8> {
+    let maximum_extended_leaf = __cpuid(0x8000_0000).eax;
+    if maximum_extended_leaf < 0x8000_0008 {
+        return None;
+    }
+
+    let bits = __cpuid(0x8000_0008).eax as u8;
+    (12..=52).contains(&bits).then_some(bits)
+}
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -12,8 +30,10 @@ impl PhysicalAddress {
             _ => None,
         }
     }
+}
 
-    pub const fn value(self) -> u64 {
+impl CommonAddress for PhysicalAddress {
+    fn value(self) -> u64 {
         self.0
     }
 }
@@ -37,8 +57,10 @@ impl VirtualAddress {
             None
         }
     }
+}
 
-    pub const fn value(self) -> u64 {
+impl CommonAddress for VirtualAddress {
+    fn value(self) -> u64 {
         self.0
     }
 }
@@ -55,20 +77,34 @@ impl PhysicalPage {
             None
         }
     }
+}
 
-    pub fn start_address(self) -> PhysicalAddress {
+impl CommonPage for PhysicalPage {
+    type Address = PhysicalAddress;
+
+    const SIZE: u64 = PAGE_SIZE;
+
+    fn start_address(self) -> Self::Address {
         // A PhysicalPage can only be constructed from a validated, page-aligned
         // PhysicalAddress or by checked_add, so this multiplication cannot exceed
         // the MAXPHYADDR limit used to construct it.
         PhysicalAddress(self.0 * PAGE_SIZE)
     }
+}
 
-    pub fn checked_add(self, page_count: usize, max_physical_address_bits: u8) -> Option<Self> {
+impl CommonPhysicalPage for PhysicalPage {
+    type ArithmeticContext = u8;
+
+    fn containing_address(address: Self::Address) -> Self {
+        Self(address.value() / PAGE_SIZE)
+    }
+
+    fn checked_add(self, page_count: usize, context: Self::ArithmeticContext) -> Option<Self> {
         let page_count = u64::try_from(page_count).ok()?;
         let page_number = self.0.checked_add(page_count)?;
         let start_address = page_number.checked_mul(PAGE_SIZE)?;
 
-        PhysicalAddress::new(start_address, max_physical_address_bits)?;
+        PhysicalAddress::new(start_address, context)?;
         Some(Self(page_number))
     }
 }
@@ -88,19 +124,6 @@ impl VirtualPage {
         }
     }
 
-    pub fn start_address(self) -> VirtualAddress {
-        VirtualAddress(self.0 * PAGE_SIZE)
-    }
-
-    pub fn checked_add(self, page_count: usize) -> Option<Self> {
-        let page_count = u64::try_from(page_count).ok()?;
-        let page_number = self.0.checked_add(page_count)?;
-        let start_address = page_number.checked_mul(PAGE_SIZE)?;
-
-        VirtualAddress::new(start_address)?;
-        Some(Self(page_number))
-    }
-
     pub const fn level4_index(self) -> usize {
         ((self.0 >> 27) & Self::TABLE_INDEX_MASK) as usize
     }
@@ -115,5 +138,64 @@ impl VirtualPage {
 
     pub const fn level1_index(self) -> usize {
         (self.0 & Self::TABLE_INDEX_MASK) as usize
+    }
+}
+
+impl CommonPage for VirtualPage {
+    type Address = VirtualAddress;
+
+    const SIZE: u64 = PAGE_SIZE;
+
+    fn start_address(self) -> Self::Address {
+        VirtualAddress(self.0 * PAGE_SIZE)
+    }
+}
+
+impl CommonVirtualPage for VirtualPage {
+    fn checked_add(self, page_count: usize) -> Option<Self> {
+        let page_count = u64::try_from(page_count).ok()?;
+        let page_number = self.0.checked_add(page_count)?;
+        let start_address = page_number.checked_mul(PAGE_SIZE)?;
+
+        VirtualAddress::new(start_address)?;
+        Some(Self(page_number))
+    }
+
+    fn is_valid_range(self, page_count: usize) -> bool {
+        let Some(last_offset) = page_count.checked_sub(1) else {
+            return true;
+        };
+        let Some(last_page) = self.checked_add(last_offset) else {
+            return false;
+        };
+
+        let start_is_upper_half = self.start_address().value() & (1 << 47) != 0;
+        let end_is_upper_half = last_page.start_address().value() & (1 << 47) != 0;
+        start_is_upper_half == end_is_upper_half
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::arch::common::paging::VirtualPageRange;
+
+    fn page(address: u64) -> VirtualPage {
+        let address = VirtualAddress::new(address).unwrap();
+        VirtualPage::from_start_address(address).unwrap()
+    }
+
+    #[test]
+    fn accepts_the_complete_lower_canonical_half() {
+        let range = VirtualPageRange::new(page(0), 1 << 35).unwrap();
+
+        assert_eq!(range.last(), Some(page(0x0000_7fff_ffff_f000)));
+        assert_eq!(range.end(), None);
+    }
+
+    #[test]
+    fn rejects_a_range_crossing_the_canonical_hole() {
+        assert!(VirtualPageRange::new(page(0x0000_7fff_ffff_f000), 2).is_none());
     }
 }

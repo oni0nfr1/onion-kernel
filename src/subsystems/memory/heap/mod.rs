@@ -3,6 +3,8 @@ pub mod global;
 
 use core::{alloc::Layout, ptr::NonNull};
 
+use crate::arch::common::paging::{DirectMap, PageMapper};
+
 use super::manager::MemoryManager;
 use free_block::FreeBlockTree;
 
@@ -26,11 +28,15 @@ impl KernelHeapInner {
         todo!()
     }
 
-    pub fn allocate(
+    pub fn allocate<M, D>(
         &mut self,
         layout: Layout,
-        memory: &mut MemoryManager<'_>,
-    ) -> Result<NonNull<u8>, HeapAllocationError> {
+        memory: &mut MemoryManager<M, D>,
+    ) -> Result<NonNull<u8>, HeapAllocationError>
+    where
+        M: PageMapper,
+        D: DirectMap<PhysicalAddress = M::PhysicalAddress, VirtualAddress = M::VirtualAddress>,
+    {
         todo!()
     }
 
@@ -38,12 +44,15 @@ impl KernelHeapInner {
     ///
     /// `pointer` and `layout` must describe a currently live allocation
     /// returned by this heap, and the allocation must no longer be used.
-    pub unsafe fn deallocate(
+    pub unsafe fn deallocate<M, D>(
         &mut self,
         pointer: NonNull<u8>,
         layout: Layout,
-        memory: &mut MemoryManager<'_>,
-    ) {
+        memory: &mut MemoryManager<M, D>,
+    ) where
+        M: PageMapper,
+        D: DirectMap<PhysicalAddress = M::PhysicalAddress, VirtualAddress = M::VirtualAddress>,
+    {
         todo!()
     }
 }

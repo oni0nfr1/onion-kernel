@@ -1,13 +1,16 @@
 pub mod node_pool;
 pub mod tree;
 
-use crate::arch::x86_64::paging::address::VirtualPage;
+use crate::arch::common::paging::VirtualPage;
 
 use self::{node_pool::RegionNodePool, tree::RegionTree};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VirtualRegion {
-    start: VirtualPage,
+pub struct VirtualRegion<P>
+where
+    P: VirtualPage,
+{
+    start: P,
     page_count: usize,
 }
 
@@ -28,12 +31,15 @@ pub enum VirtualRegionError {
 }
 
 #[expect(unused_variables, reason = "implementation scaffold")]
-impl VirtualRegion {
-    pub fn new(start: VirtualPage, page_count: usize) -> Result<Self, VirtualRegionError> {
+impl<P> VirtualRegion<P>
+where
+    P: VirtualPage,
+{
+    pub fn new(start: P, page_count: usize) -> Result<Self, VirtualRegionError> {
         todo!()
     }
 
-    pub fn start(self) -> VirtualPage {
+    pub fn start(self) -> P {
         todo!()
     }
 
@@ -47,18 +53,24 @@ impl VirtualRegion {
 }
 
 #[expect(dead_code, reason = "implementation scaffold")]
-pub struct VirtualRegionAllocator {
-    arena: VirtualRegion,
-    address_tree: RegionTree,
-    free_size_tree: RegionTree,
-    node_pool: RegionNodePool,
+pub struct VirtualRegionAllocator<P>
+where
+    P: VirtualPage,
+{
+    arena: VirtualRegion<P>,
+    address_tree: RegionTree<P>,
+    free_size_tree: RegionTree<P>,
+    node_pool: RegionNodePool<P>,
 }
 
 #[expect(unused_variables, reason = "implementation scaffold")]
-impl VirtualRegionAllocator {
+impl<P> VirtualRegionAllocator<P>
+where
+    P: VirtualPage,
+{
     pub fn new(
-        arena: VirtualRegion,
-        node_pool: RegionNodePool,
+        arena: VirtualRegion<P>,
+        node_pool: RegionNodePool<P>,
     ) -> Result<Self, VirtualRegionError> {
         todo!()
     }
@@ -75,19 +87,19 @@ impl VirtualRegionAllocator {
         &mut self,
         page_count: usize,
         alignment_pages: usize,
-    ) -> Result<VirtualRegion, VirtualRegionError> {
+    ) -> Result<VirtualRegion<P>, VirtualRegionError> {
         todo!()
     }
 
-    pub fn release(&mut self, region: VirtualRegion) -> Result<(), VirtualRegionError> {
+    pub fn release(&mut self, region: VirtualRegion<P>) -> Result<(), VirtualRegionError> {
         todo!()
     }
 
-    pub fn node_pool(&self) -> &RegionNodePool {
+    pub fn node_pool(&self) -> &RegionNodePool<P> {
         todo!()
     }
 
-    pub fn node_pool_mut(&mut self) -> &mut RegionNodePool {
+    pub fn node_pool_mut(&mut self) -> &mut RegionNodePool<P> {
         todo!()
     }
 }

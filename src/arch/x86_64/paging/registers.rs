@@ -1,5 +1,7 @@
 use core::arch::asm;
 
+use crate::arch::common::paging::{Address as _, Page as _};
+
 use super::address::{PhysicalAddress, PhysicalPage};
 
 const CR3_LOWER_BITS_MASK: u64 = 0x0fff;

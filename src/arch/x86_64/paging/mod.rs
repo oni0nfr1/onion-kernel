@@ -1,5 +1,7 @@
 pub mod address;
+pub mod direct_map;
 pub mod entry;
+pub mod layout;
 pub mod level;
 pub mod mapper;
 pub mod registers;

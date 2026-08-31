@@ -1,6 +1,4 @@
-use core::ptr::NonNull;
-
-use crate::arch::x86_64::paging::{entry::PageFlags, level::NonLeafTableLevel};
+use crate::arch::x86_64::paging::entry::PageFlags;
 
 use super::{
     entry::PageTableEntry,

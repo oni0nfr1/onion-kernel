@@ -87,15 +87,18 @@ make font FONT_SOURCE=/path/to/font.psfu
 ## 소스 구조
 
 - `src/arch`: 아키텍처별 저수준 코드
+- `src/boot`: 부트 프로토콜 해석과 드라이버·서브시스템용 자원 descriptor
 - `src/drivers`: 하드웨어를 직접 제어하는 드라이버
 - `src/interfaces`: 드라이버와 서브시스템이 공유하는 중립 프로토콜
 - `src/subsystems`: 하드웨어에서 분리된 상위 서브시스템
 - `src/util`: 공통 자료형과 유틸리티
 - `tools`: 호스트에서 실행하는 개발 도구
-- `docs`: 바이너리 형식 등의 프로젝트 명세
+- `docs`: 바이너리 형식과 커널 설계 문서
 
 상위 모듈 사이의 의존 방향과 현재 허용하는 임시 예외는
 [`docs/module-dependencies.md`](docs/module-dependencies.md)에 정리되어 있습니다.
+메모리 레이아웃, 페이징, 할당기 및 부트스트랩 설계는
+[`docs/memory/README.md`](docs/memory/README.md)에서 확인할 수 있습니다.
 
 현재는 x86_64만 지원하며, 지원되는 실제 하드웨어 및 펌웨어 조합은 아직
 충분히 검증되지 않았습니다.
