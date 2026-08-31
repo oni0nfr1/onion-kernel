@@ -1,3 +1,7 @@
+use core::ptr::NonNull;
+
+use crate::arch::x86_64::paging::{entry::PageFlags, level::NonLeafTableLevel};
+
 use super::{
     entry::PageTableEntry,
     level::{Level1, Level2, Level3, Level4, TableLevel},
@@ -13,21 +17,32 @@ where
     entries: [PageTableEntry<L>; PAGE_TABLE_ENTRY_COUNT],
 }
 
-#[expect(unused_variables, reason = "implementation scaffold")]
 impl<L> PageTable<L>
 where
     L: TableLevel,
 {
     pub fn new() -> Self {
-        todo!()
+        Self {
+            entries: [PageTableEntry::empty(); PAGE_TABLE_ENTRY_COUNT],
+        }
     }
 
     pub fn entry(&self, index: usize) -> Option<&PageTableEntry<L>> {
-        todo!()
+        self.entries.get(index)
     }
 
     pub fn entry_mut(&mut self, index: usize) -> Option<&mut PageTableEntry<L>> {
-        todo!()
+        self.entries.get_mut(index)
+    }
+
+    pub fn clear(&mut self) {
+        self.entries = [PageTableEntry::empty(); PAGE_TABLE_ENTRY_COUNT];
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries
+            .iter()
+            .all(|entry| !entry.contains_flags(PageFlags::PRESENT))
     }
 }
 

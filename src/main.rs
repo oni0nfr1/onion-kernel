@@ -25,16 +25,9 @@ use kernel::{
     util::color::Color,
 };
 use limine::{
-    BaseRevision,
-    RequestsEndMarker,
-    RequestsStartMarker,
-    memmap,
+    BaseRevision, RequestsEndMarker, RequestsStartMarker, memmap,
     paging::PagingMode,
-    request::{
-        FramebufferRequest,
-        MemmapRequest,
-        PagingModeRequest,
-    },
+    request::{FramebufferRequest, MemmapRequest, PagingModeRequest},
 };
 
 #[used]

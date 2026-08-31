@@ -88,14 +88,14 @@ page-table formats, control registers, and TLB invalidation. Other modules may
 depend on these mechanisms.
 
 `arch` must not depend on a physical allocator implementation in
-`subsystems::memory`. When paging needs frames for intermediate page tables, it
+`subsystems::memory`. When paging needs physical pages for intermediate page tables, it
 defines the required contract on the architecture side:
 
 ```text
-arch::x86_64::paging::PageTableFrameProvider
+arch::x86_64::paging::PageTablePageProvider
                          ^
                          | implements
-subsystems::memory::BitmapFrameAllocator
+subsystems::memory::BitmapPageAllocator
 ```
 
 This preserves the dependency direction:

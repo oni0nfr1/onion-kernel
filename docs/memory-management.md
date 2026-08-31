@@ -18,21 +18,21 @@ layer should translate Limine responses into protocols defined by
 `interfaces`, and the memory subsystem should consume boot information through
 those interfaces.
 
-## Physical frame allocator
+## Physical page allocator
 
-The initial physical frame allocator manages page-aligned portions of Limine
+The initial physical page allocator manages page-aligned portions of Limine
 `USABLE` memory with one `Bitmap` per physical-memory region. It allocates one
-frame at a time; contiguous-frame allocation is not currently planned.
+page at a time; contiguous-page allocation is not currently planned.
 
-After successful initialization, a normal frame-allocation request can fail
-only when no managed free frame remains. Bitmap storage, region descriptors,
+After successful initialization, a normal page-allocation request can fail
+only when no managed free page remains. Bitmap storage, region descriptors,
 and other bootstrap metadata are reserved before the allocator becomes
-available, so allocating a frame does not require allocating more allocator
+available, so allocating a page does not require allocating more allocator
 metadata.
 
 Initialization can still fail independently because of an invalid memory map,
 arithmetic overflow, or insufficient usable space for bootstrap metadata.
-Invalid or duplicate frame deallocation is a caller contract violation rather
+Invalid or duplicate page deallocation is a caller contract violation rather
 than an out-of-memory condition.
 
 ## Virtual-region index
@@ -66,12 +66,12 @@ the heap can itself require a virtual-region allocation. Such an allocation
 would recurse into the global allocator or deadlock on allocator locks.
 
 The node pool is instead backed by dedicated slabs obtained directly from the
-physical frame allocator. When no free node slot remains:
+physical page allocator. When no free node slot remains:
 
-1. Allocate one physical frame.
+1. Allocate one physical page.
 2. Access it through the Limine higher-half direct map (HHDM).
 3. Initialize it as a region-node slab.
-4. Divide the remainder of the frame into fixed-size node slots.
+4. Divide the remainder of the page into fixed-size node slots.
 5. Add those slots to the node pool and continue the interrupted operation.
 
 This path neither requests a virtual region nor invokes `KernelHeap`. Slab
@@ -86,8 +86,8 @@ remain unchanged.
 
 ## Initial node-pool exhaustion policy
 
-If the node pool is empty and the physical frame allocator cannot provide a
-frame for another slab, the initial kernel treats the condition as an
+If the node pool is empty and the physical page allocator cannot provide a
+page for another slab, the initial kernel treats the condition as an
 unrecoverable kernel out-of-memory event and panics.
 
 This is an explicit temporary policy. At that point the node pool cannot

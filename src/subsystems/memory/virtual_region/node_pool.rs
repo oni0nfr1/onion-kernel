@@ -44,8 +44,8 @@ impl RegionNodePool {
     ///
     /// # Safety
     ///
-    /// `page` must point to an exclusively owned, page-aligned physical frame
-    /// mapped writable for at least one complete page. The frame becomes owned
+    /// `page` must point to an exclusively owned, page-aligned physical page
+    /// mapped writable for at least one complete page. The physical page becomes owned
     /// by the pool and must remain mapped for the pool's lifetime.
     pub unsafe fn add_slab(&mut self, page: NonNull<u8>) {
         todo!()

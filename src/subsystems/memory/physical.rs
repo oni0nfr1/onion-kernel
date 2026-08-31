@@ -1,13 +1,13 @@
 use crate::{
-    arch::x86_64::paging::{address::PhysicalFrame, mapper::PageTableFrameProvider},
+    arch::x86_64::paging::{address::PhysicalPage, mapper::PageTablePageProvider},
     util::bitmap::Bitmap,
 };
 
 #[derive(Debug)]
 #[expect(dead_code, reason = "implementation scaffold")]
 pub struct PhysicalRegionDescriptor {
-    start: PhysicalFrame,
-    frame_count: usize,
+    start_page: PhysicalPage,
+    page_count: usize,
     bitmap_offset: usize,
     bitmap_byte_count: usize,
     next_hint: usize,
@@ -15,7 +15,7 @@ pub struct PhysicalRegionDescriptor {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAllocatorInitError {
-    NoUsableFrames,
+    NoUsablePages,
     InvalidRegion,
     InsufficientBitmapStorage,
     AddressOverflow,
@@ -23,14 +23,14 @@ pub enum PhysicalAllocatorInitError {
 }
 
 #[expect(dead_code, reason = "implementation scaffold")]
-pub struct BitmapFrameAllocator<'a> {
+pub struct BitmapPageAllocator<'a> {
     regions: &'a mut [PhysicalRegionDescriptor],
     bitmap_storage: &'a mut [u8],
     next_region_hint: usize,
 }
 
 #[expect(unused_variables, reason = "implementation scaffold")]
-impl<'a> BitmapFrameAllocator<'a> {
+impl<'a> BitmapPageAllocator<'a> {
     pub fn new(
         regions: &'a mut [PhysicalRegionDescriptor],
         bitmap_storage: &'a mut [u8],
@@ -38,15 +38,15 @@ impl<'a> BitmapFrameAllocator<'a> {
         todo!()
     }
 
-    pub fn allocate(&mut self) -> Option<PhysicalFrame> {
+    pub fn allocate(&mut self) -> Option<PhysicalPage> {
         todo!()
     }
 
     /// # Safety
     ///
-    /// `frame` must have been returned by this allocator, must still be
+    /// `page` must have been returned by this allocator, must still be
     /// allocated, and must no longer be used or referenced anywhere.
-    pub unsafe fn deallocate(&mut self, frame: PhysicalFrame) {
+    pub unsafe fn deallocate(&mut self, page: PhysicalPage) {
         todo!()
     }
 
@@ -62,14 +62,14 @@ pub struct RegionBitmap<'a> {
     pub bitmap: Bitmap<'a>,
 }
 
-impl PageTableFrameProvider for BitmapFrameAllocator<'_> {
-    fn allocate_page_table_frame(&mut self) -> Option<PhysicalFrame> {
+impl PageTablePageProvider for BitmapPageAllocator<'_> {
+    fn allocate_page_table_page(&mut self) -> Option<PhysicalPage> {
         self.allocate()
     }
 
-    unsafe fn release_page_table_frame(&mut self, frame: PhysicalFrame) {
-        // SAFETY: The caller must uphold `PageTableFrameProvider`'s release
+    unsafe fn release_page_table_page(&mut self, page: PhysicalPage) {
+        // SAFETY: The caller must uphold `PageTablePageProvider`'s release
         // contract, which is at least as strict as `deallocate`'s contract.
-        unsafe { self.deallocate(frame) };
+        unsafe { self.deallocate(page) };
     }
 }
